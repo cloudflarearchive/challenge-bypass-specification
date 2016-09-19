@@ -1,0 +1,413 @@
+Title: CloudFlare CAPTCHA bypass
+Authors: George Tankersley, Filippo Valsorda, Alex Davidson
+Created: 19-Sep-2016 
+
+Latest:
+  2016-09-19
+
+History: 
+  (see repository commits)
+
+Preface:
+  Large parts of this specification are taken from an original draft written by 
+  George Tankersley and Fillippo Valsorda 
+  (https://github.com/gtank/captcha-draft/blob/master/captcha-plugin-draft.txt)  
+
+Overview:
+
+  In many IP reputation systems, Tor exits quickly become associated with
+  abuse.  Because of this, Tor Browser users quickly become familiar with
+  various CAPTCHA challenges. The worst of these is CloudFlare- since their
+  CAPTCHA service requires JavaScript to serve anything but unreadable noise,
+  they render an increasingly large portion of the internet inaccessible to Tor
+  Browser users.
+
+  This document describes a solution to this problem. We propose a Tor Browser
+  plugin that will store a finite set of unlinkable CAPTCHA bypass tokens and a
+  server-side redemption system that will consume them, allowing users to
+  forego solving a CAPTCHA so long as they supply a valid token.
+
+Introduction:
+
+  CloudFlare uses an IP reputation database to serve challenge pages to users 
+  who are deemed to be malicious. Specifically in the case of Tor, each user is 
+  given the IP address of the exit node that their connection traverses through. 
+  Tor exit nodes are typically assigned poor IP reputation scores due to the 
+  amount of abuse that is targeted through these IPs. The effect of this is that 
+  regular users are presented with a large number of CAPTCHA pages when 
+  attempting to visit websites protected by CloudFlare (this also affects users 
+  of I2P and VPN services). 
+
+  While they are intended as a minor inconvenience, they are impenetrable for 
+  users with high privacy or security requirements. Google's ReCAPTCHA service 
+  de facto demands JavaScript execution- the challenges it produces without JS 
+  have degraded to such an extent that humans frequently cannot solve them. 
+  Worse, the challenge page sets a unique cookie to indicate that the user has 
+  been verified. Since CloudFlare controls the domains for all of the protected 
+  origins, it can potentially link CAPTCHA users across all >2 million 
+  CloudFlare sites without violating same-origin policy.
+
+  This protocol solves both of these problems. First, it moves JavaScript
+  execution into a consistent browser plugin (for use in TBB etc.) that can be 
+  more effectively audited than a piece of ephemerally injected JavaScript. 
+  Second, it separates CAPTCHA solving from the request endpoint and eliminates 
+  linkability across domains with blind signatures. Furthermore the solution 
+  intends to make the lives of such users much easier by drastically lowering 
+  the number of CAPTCHAs that are seen by honest users. Crucially this is 
+  achieved with no degradation in the current level of abuse protection provided 
+  by CloudFlare to current customers of their service.
+
+  In essence, the protocol allows a user to solve a single CAPTCHA and in return
+  learn a specified number of tokens that are blindly signed that can be used 
+  for redemption instead of witnessing CAPTCHA challenges in the future. For
+  each request a client makes to a CloudFlare host that would otherwise demand
+  a CAPTCHA solution, a browser plugin will automatically supply a bypass token. 
+  By issuing a number of tokens per CAPTCHA solution that is suitable for 
+  ordinary browsing but too low for attacks, we maintain similar protective 
+  guarantees to those of CloudFlare's current system. We also leave the door 
+  open to an elevated threat response that does not offer to accept bypass 
+  tokens. 
+
+  The solution we provide is general in the sense that it is agnostic of the 
+  edge server (in this case CloudFlare) - the protocol may be of use to similar 
+  edge providers who face similar issues. Furthermore while we explicitly talk 
+  of CAPTCHAs as a challenge mechanism, our design will be modular enough to 
+  incorporate the use of any particular challenge.
+
+1 Participants:
+  
+  The "edge" proxies connections for a protected website and presents a
+  challenge page if the request is deemed malicious. If the challenge is 
+  completed successfully then the edge issues tokens to the given user. The edge 
+  also consumes these tokens in order to allow bypassing of the challenge page 
+  and prevents double spending.
+
+  The "plugin" runs in a user's browser and keeps track of their store of bypass 
+  tokens. It detects challenges pages and presents bypass tokens when needed. It 
+  also pins keys from challenge pages and validates <meta> tag signatures.
+
+  We will also refer to the "user"/"client" who is responsible for making 
+  connection requests to protected websites.
+
+  The original draft states the independence of the "edge" and the "challenge" 
+  service that issues tokens upon completion of challenges. We will assume that 
+  both these roles are carried out alone by the "edge".
+
+2 Cryptographic preliminaries:
+
+  2.1 Schemes
+
+    This specification uses the following cryptographic building blocks:
+
+      * A public key encryption system PK_KEYGEN()->seckey, pubkey;
+        PK_ENCRYPT(pubkey, msg)->ciphertext; and PK_DECRYPT(seckey,
+        ciphertext)->msg; where secret keys are of length PK_SECKEY_LEN bytes,
+        and public keys are of length PK_PUBKEY_LEN bytes.
+
+      * A public key signature system SIGN_KEYGEN()->seckey, pubkey;
+        SIGN_SIGN(seckey,msg)->sig; and SIGN_VERIFY(pubkey, sig, msg) -> { "OK",
+        "BAD" }; where secret keys are of length SIGN_SECKEY_LEN bytes, public
+        keys are of length SIGN_PUBKEY_LEN bytes, and signatures are of length
+        SIGN_SIG_LEN bytes.
+
+        This signature system must also support blind signing (see below).
+
+      * A cryptographic hash function H(d), which should be preimage and
+        collision resistant. It produces hashes of length HASH_LEN bytes.
+
+      * A cryptographic message authentication code MAC(key,msg) that produces
+        outputs of length MAC_LEN bytes.
+
+    We provisionally instantiate these with
+
+      For both PK and SIGN: 2048-bit RSA using OAEP and PSS (respectively) for
+      normal operations.
+
+      For H: SHA256
+
+      For MAC: HMAC-SHA256
+
+  2.2 Blind signing
+
+    This specification uses the following cryptographic tools for blinding and 
+    unblinding tokens and corresponding signatures:
+
+      * An algorithm BLIND_GEN(i) -> b_i where b_i is a secret blinding factor for 
+      blinding a single token t_i
+
+      * An algorithm BLIND(t_i, b_i) -> t'_i that takes the original token t_i and 
+      a blinding factor b_i and outputs a blinded token t'_i
+
+      * (Signing is carried out as above using the standard signing algorithm)
+
+      * An algorithm UNBLIND(t'_i, b_i) -> taking the blinded token and the 
+      blinding factor used and outputting the original unblinded token t_i
+
+      * An algorithm UNBLIND-SIG(s'_i, b_i) -> s_i where s'_i is a signature on the 
+      blinded token t'_i, b_i is the blinding factor used to retrieve t'_i from 
+      t_i and s_i is a valid signature on t_i.
+
+    We use the RSA modification that is described at 
+    https://en.wikipedia.org/wiki/Blind_signature#Blind_signature_schemes to 
+    instantiate the algorithms that we define above. 
+
+    NOTE: In the future we believe it may be preferable to switch to a 
+    pairing-based elliptic curve variant that allows for blind signing. 
+    For example we may be able to use the variant of BLS signatures described 
+    here: 
+    http://crypto.stackexchange.com/questions/2424/which-blind-signature-schemes-exist-and-how-do-they-compare
+    this would allow for much shorter signatures on tokens. 
+    Our construction maintains generality anyway and so switching the specific 
+    scheme should not affect the operation of the protocol.
+    
+  2.3 Keys
+
+    This protocol involves several keys. For clarity, they are:
+
+      * One secret/public keypair for ENCRYPT, used by the plugin to encrypt the
+        token contents such that they can only be read by the edge.
+
+      * One secret/public keypair for SIGN, used by the challenge service to sign
+        bypass tokens. The plugin SHOULD be distributed with a pinned copy of
+        this public key for each supported challenge service. The edge MUST have
+        a copy of this public key for any challenge service whose tokens it
+        accepts. This key pair *must* be different to the key pair for ENCRYPT to 
+        avoid attacks 
+        (https://en.wikipedia.org/wiki/Blind_signature#Dangers_of_blind_signing).
+
+      * One secret/public keypair for SIGN, used by the edge to sign <meta> tags
+        on challenge pages. If the same operator controls both the edge and the
+        challenge service, this MUST be different from the keypair used to sign
+        bypass tokens because the client has access to a signing oracle under the
+        token key (see "Obtaining signatures"). The plugin should be distributed
+        with a pinned copy of this public key for each supported edge.
+
+      * A symmetric MAC key derived from each nonce, used by the plugin to bind a
+        redeemed nonce to its particular request.
+
+3 Notation 
+
+  - We use the symbol || to denote concatenation
+  - All tokens are assumed to be communicated in the hex representation of their 
+  byte arrays.
+
+4 Token representation
+
+  The edge issues blindly signed tokens to the user who completes a given 
+  challenge that was specified by the edge. The tokens are stored and controlled 
+  by a plugin that is present in the client's browser.
+
+  For our purposes tokens will be a JSON object comprising a single "nonce" 
+  field. The "nonce" field will be made up of 30 cryptographically random bytes.
+
+  Token JSON:
+
+  {
+      nonce: <random 30 bytes>
+  }
+
+5 Client-Edge messages 
+
+  The client communicates with the edge using "JSON requests" that can currently
+  be used for designating tokens for signing or a single token for redemption 
+  and bypassing challenge pages. 
+
+  A JSON signing request takes the form:
+
+  {
+      type: "Signing",
+      contents: [t'_1, t'_2, ... t'_M]
+  }
+
+  where each t'_i is a blinded version of a token taking the form above. 
+  A JSON redeeming request takes the form: 
+
+  {
+      type: "Redeem",
+      contents: [<encrypted token>, <signature>, <HMAC>]
+  }
+
+  where the encrypted token is an unblinded token as above, the signature is 
+  unblinded and valid over this token and the HMAC is computed over the Host 
+  header and HTTP path of the request containing the token. The HMAC is also 
+  keyed with the nonce from the "nonce" field in the token JSON.
+
+  The contents field on both of these requests is base-64 encoded before it is 
+  sent.
+
+6 Plugin operation
+
+  The browser that is operated by the user will contain an extension known as 
+  the "plugin". This plugin will contain pinned public keys for the signing key 
+  pairs described above of any edge service that currently engages in bypassing 
+  challenges using signed tokens. These public keys will be updated periodically 
+  by the edge depending on internal security considerations.
+
+  When the edge issues signed tokens to the user, these will be stored against 
+  the public key that correctly validates the signatures on the tokens. When 
+  posed with a token redemption request the plugin will choose a token that has 
+  not been used yet and send this to the edge along with the paired signature. 
+
+7 Design
+
+  7.1 Generation/signing of tokens
+
+    When a user issues a HTTP request for a website that is protected the edge 
+    will respond with a challenge page, for instance containing a CAPTCHA. 
+    CAPTCHA responses are typically submitted to a <form> tag on this page. 
+
+    If the edge accepts tokens for bypassing CAPTCHAs then it will add an extra 
+    <meta> tag to the <head> of the HTML body with id="captcha-bypass". It will
+    also add a certificate for the public key that is currently in use for 
+    verifying signatures on tokens.
+    A compatible plugin (see 5) should then follow these steps:
+
+      * check the validity of the certificate;
+      * check that the public key on the certificate is pinned in the extension;
+      * generate M tokens and save them (e.g. 50 < M < 500?);
+      * blind them as appropriate;
+      * when the challenge solution is sent to the edge, the blinded tokens are 
+      sent as part of the body of the HTTP request in a JSON signing request.
+
+    The edge, after performing validation on the rest of the request (i.e.
+    checking the CAPTCHA solution), should sign the blinded values and send the 
+    signatures comma-separated in the response body as part of a concatenated 
+    string.
+
+    The client then:
+
+      * parses each of the signatures and pairs them with the blinded tokens;
+      * verifies the signatures;
+      * unblinds the signature/token pairings;
+      * verifies the unblinded pairs;
+      * stores the signed tokens against the pinned edge service public key.
+
+    The client validates the signatures with the pinned key to prevent
+    tracking via per-user signing keys.
+
+  7.2 Token redemption
+  
+    An edge server communicates to a client that it will accept tokens signed by
+    a certain challenge service key using the same <meta> tags described above.
+    When encountering a page displaying these tags a client does the following:
+
+      * check the validity of the certificate;
+      * check that the certificate corresponds to one of the pinned public keys;
+      * check if it has available tokens signed by this key;
+      * mark the current origin as accepting tokens signed with the given server 
+      key;
+      * reload the page.
+
+    A client should not reload the page if it tried to redeem a token while
+    loading it the first time, to avoid infinite loops.  
+
+  7.3 Edge validation process
+
+    Every time a client sends an HTTP request to an origin marked as accepting 
+    tokens for a certain server key, it can send a  "challenge-bypass-token" 
+    HTTP header, composed of a JSON redeeming request containing a base-64 
+    encoded contents field with the following properties:
+
+      * a yet unused token, encrypted with the corresponding edge identity key;
+      * the unblinded signature for that token;
+      * a HMAC - keyed with the nonce from the "nonce" field of the token - of 
+      the concatenation of the Host header and the HTTP path of the request.
+
+    Used nonces must be deleted immediately by the plugin/client. In practise, 
+    the signatures that we use are JWS objects and we store the encrypted token
+    directly on the JWS object rather than separately.
+
+    The edge, when receiving such a header performs the following validation on 
+    the request:
+
+      * set a "success" bool to true;
+      * decrypt the token, if the token is malformed set "success" to false;
+      * check the signature on the token, if invalid set "success" to false;
+      * check if the token was already used, if so set "success" to false;
+      * validate the HMAC using the "host" and "http" information from the 
+      verification request, if invalid set "success" to false.
+
+    A server must reject malformed nonces if a client tries to redeem them, even 
+    if they come with a valid signature. This is to prevent attacks that 
+    exploit the homomorphic property of RSA signatures. 
+
+    If at the end of this process "success" is true, the server SHOULD treat the
+    request as coming from a client that solved a CAPTCHA recently. It should 
+    not persist this information, as the client MUST spend a different nonce for 
+    each request. 
+
+    Finally, the edge also gives the client a single-domain clearance 
+    cookie (currently cookies are accepted over multiple domains). This allows
+    the client to make future visits to the domain in question without having to
+    spend more tokens. This means that we may be able to make considerable 
+    reductions in the amount of tokens we hand out which may lead to longer key
+    rotation periods and more efficient run-times for generation and 
+    verification of tokens in both the edge and browsers.
+
+  7.4 Double-spend detection
+
+    The scheme requires the server to detect nonce reuse with reasonable 
+    reliability. However, there might be no need for a zero false positive rate, 
+    because if an attacker needs to make 10000 requests to have one succeed, 
+    that's possibly an acceptable trade-off.
+
+    Therefore, the server could use data structures such as Bloom filters or 
+    cuckoo filters to store tokens that it has witnessed. The parameters of 
+    these structures can be chosen to ensure a false-positive probability of any 
+    given amount. Cuckoo filters may be more efficient but Bloom filters may be 
+    easier to construct.
+
+8 Security considerations
+
+  (Largely taken from previous draft)
+  
+  8.1 Deanonymization potential
+
+    The current CloudFlare CAPTCHA simply places a cookie allowing you to
+    access the website. Since CloudFlare controls the origins, it could
+    currently correlate user sessions across multiple circuits using these
+    cookies. This is a gap in the Tor Browser threat model- the design
+    explicitly ignores linking within a session by malicious first parties, but
+    CloudFlare has effectively first-party control over a massive swath of the
+    web.
+
+    Our design is an improvement over this state of affairs. Since the CAPTCHA
+    service only sees blinded nonces, CloudFlare cannot link a CAPTCHA solution
+    session to a given redemption request. Since each token is used only once,
+    in contrast to a cookie, the tokens themselves cannot be used to link
+    requests.
+
+    The largest vector for deanonymization is something we call the "key
+    tagging attack" - in short, CloudFlare could sign nonces using a unique key
+    for every user and link the redemption requests (and thus derive the user's
+    browsing history) by using the alleged "public" key as an identifier. Our
+    design addresses this by pinning the CloudFlare public key in the Tor
+    Browser plugin itself. At the very least this ensures that all plugin users
+    are seeing the same CloudFlare key.
+
+  8.2 Interception of redemption tokens by malicious exits
+
+    If the target site is accessed over HTTP, there is an opportunity for a
+    malicious exit to extract the tokens from the user's requests and replay
+    them for its own use. To alleviate this, we include a MAC over the HOST and
+    PATH headers for a particular request using the redeemed nonce as a key.
+    Since the unblinded nonce is known only to the client and the CAPTCHA
+    service endpoint (due to the copy encrypted in the redemption token) it
+    constitutes a shared key that allows the service to verify this binding and
+    disallow out-of-scope replays. This provides very similar behavior to
+    third-party caveats in Google's macaroon design.
+
+  8.3 Token stockpiling
+
+    An attacker who wishes to bypass many CAPTCHAs in the future could
+    intentionally trigger CAPTCHAs (e.g. by first running attacks through a
+    particular IP) and save the resulting tokens for later.
+
+  8.4 Token exhaustion attacks by malicious exits or sites
+
+    An entity with the ability to inject content (such as a malicious exit or
+    website) can spoof requests for bypass tokens. In the absence of logic to
+    prevent this, an attacker can induce the TBB plugin to spend all of its
+    bypass tokens.
+
+
