@@ -6,6 +6,10 @@ Network Working Group                                        A. Davidson
 Internet-Draft                      Royal Holloway, University of London
 Intended status: Informational                               N. Sullivan
 Expires: March 17, 2017                                       CloudFlare
+                                                           G. Tankersley
+                                                                  coreOS
+                                                             F. Valsorda
+                                                              CloudFlare
                                                       September 13, 2016
 
 
@@ -45,19 +49,20 @@ Copyright Notice
    Copyright (c) 2016 IETF Trust and the persons identified as the
    document authors.  All rights reserved.
 
+
+
+
+
+Davidson, et al.         Expires March 17, 2017                 [Page 1]
+
+Internet-Draft   Protocol for bypassing challenge pages   September 2016
+
+
    This document is subject to BCP 78 and the IETF Trust's Legal
    Provisions Relating to IETF Documents
    (http://trustee.ietf.org/license-info) in effect on the date of
    publication of this document.  Please review these documents
    carefully, as they describe your rights and restrictions with respect
-
-
-
-Davidson & Sullivan      Expires March 17, 2017                 [Page 1]
-
-Internet-Draft   Protocol for bypassing challenge pages   September 2016
-
-
    to this document.  Code Components extracted from this document must
    include Simplified BSD License text as described in Section 4.e of
    the Trust Legal Provisions and are provided without warranty as
@@ -94,31 +99,31 @@ Table of Contents
      5.1.  Pinned public keys  . . . . . . . . . . . . . . . . . . .  17
    6.  Token Acquisition Protocol  . . . . . . . . . . . . . . . . .  17
      6.1.  [OriginRequest] . . . . . . . . . . . . . . . . . . . . .  17
-     6.2.  {ChallengePage} . . . . . . . . . . . . . . . . . . . . .  18
-     6.3.  {VerifyCertificate} . . . . . . . . . . . . . . . . . . .  18
-     6.4.  {GenerateTokens} + {BlindTokens}  . . . . . . . . . . . .  18
-     6.5.  {SolveChallenge}  . . . . . . . . . . . . . . . . . . . .  18
+     6.2.  ChallengePage . . . . . . . . . . . . . . . . . . . . . .  18
+     6.3.  VerifyCertificate . . . . . . . . . . . . . . . . . . . .  18
+     6.4.  GenerateTokens + BlindTokens  . . . . . . . . . . . . . .  18
+     6.5.  SolveChallenge  . . . . . . . . . . . . . . . . . . . . .  18
      6.6.  [SignRequest] . . . . . . . . . . . . . . . . . . . . . .  19
-     6.7.  {SignTokens}  . . . . . . . . . . . . . . . . . . . . . .  19
+     6.7.  SignTokens  . . . . . . . . . . . . . . . . . . . . . . .  19
      6.8.  [Response]  . . . . . . . . . . . . . . . . . . . . . . .  19
-     6.9.  {VerifyingSignatures} . . . . . . . . . . . . . . . . . .  19
-     6.10. {UnblindTokens} . . . . . . . . . . . . . . . . . . . . .  20
-     6.11. {StoreTokens} . . . . . . . . . . . . . . . . . . . . . .  20
-   7.  Challenge Bypass Protocol . . . . . . . . . . . . . . . . . .  20
-     7.1.  {ConstructTokenMessage} . . . . . . . . . . . . . . . . .  20
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                 [Page 2]
+Davidson, et al.         Expires March 17, 2017                 [Page 2]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
-     7.2.  {ProofOfWork} . . . . . . . . . . . . . . . . . . . . . .  21
-     7.3.  {SendToken} . . . . . . . . . . . . . . . . . . . . . . .  21
-     7.4.  {VerifyPoW} . . . . . . . . . . . . . . . . . . . . . . .  21
-     7.5.  {VerifyTokenMessage}  . . . . . . . . . . . . . . . . . .  22
-     7.6.  {GetOrigin} + [Response]  . . . . . . . . . . . . . . . .  22
+     6.9.  VerifyingSignatures . . . . . . . . . . . . . . . . . . .  19
+     6.10. UnblindTokens . . . . . . . . . . . . . . . . . . . . . .  20
+     6.11. StoreTokens . . . . . . . . . . . . . . . . . . . . . . .  20
+   7.  Challenge Bypass Protocol . . . . . . . . . . . . . . . . . .  20
+     7.1.  ConstructTokenMessage . . . . . . . . . . . . . . . . . .  20
+     7.2.  ProofOfWork . . . . . . . . . . . . . . . . . . . . . . .  21
+     7.3.  SendToken . . . . . . . . . . . . . . . . . . . . . . . .  21
+     7.4.  VerifyPoW . . . . . . . . . . . . . . . . . . . . . . . .  21
+     7.5.  VerifyTokenMessage  . . . . . . . . . . . . . . . . . . .  22
+     7.6.  GetOrigin + [Response]  . . . . . . . . . . . . . . . . .  22
    8.  References  . . . . . . . . . . . . . . . . . . . . . . . . .  22
      8.1.  Normative References  . . . . . . . . . . . . . . . . . .  22
      8.2.  Informative References  . . . . . . . . . . . . . . . . .  23
@@ -157,19 +162,19 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    poor reputation scores.  This can also effect other services such as
    VPN providers and I2P traffic.
 
+
+
+
+Davidson, et al.         Expires March 17, 2017                 [Page 3]
+
+Internet-Draft   Protocol for bypassing challenge pages   September 2016
+
+
    The end result is that honest users of services like Tor are forced
    to complete many challenge pages in order to access content provided
    by edge service providers such as CloudFlare.  This problem is
    exacerbated by the fact that these companies typically offer services
    to a wide-range of websites including many of the most visited web
-
-
-
-Davidson & Sullivan      Expires March 17, 2017                 [Page 3]
-
-Internet-Draft   Protocol for bypassing challenge pages   September 2016
-
-
    pages on the internet today.  This results in a huge increase in
    workload for these users for a very common and unobtrusive task.
 
@@ -213,18 +218,18 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    edge-protected: Term for origins that pay the edge to provide
    protection services for their domain.
 
+
+
+
+Davidson, et al.         Expires March 17, 2017                 [Page 4]
+
+Internet-Draft   Protocol for bypassing challenge pages   September 2016
+
+
    endpoint: Points where requests and responses are dealt with.
 
    browser: A program ran by the client that provides access to
    webpages.
-
-
-
-
-Davidson & Sullivan      Expires March 17, 2017                 [Page 4]
-
-Internet-Draft   Protocol for bypassing challenge pages   September 2016
-
 
    plugin: An installed service that runs in the client's browser.
 
@@ -272,12 +277,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-
-
-
-
-
-Davidson & Sullivan      Expires March 17, 2017                 [Page 5]
+Davidson, et al.         Expires March 17, 2017                 [Page 5]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -285,21 +285,21 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
             Client                                            Edge
 
             [OriginRequest]         ------->
-                                                    {ChallengePage  ^
+                                                     ChallengePage  ^
                                                       + bypass_tag  |
-                                                   + sig_key_cert}  |
+                                                    + sig_key_cert  |
                                     <-------            [Response]  v
-         ^  {VerifyCertificate}
-         |  {GenerateTokens}
-         v  {BlindTokens}
-         ^  {SolveChallenge}
-         v  [SignRequest]               ------->
-                                                 {VerifyChallenge}  ^
-                                                      {SignTokens}  |
+         ^  VerifyCertificate
+         |  GenerateTokens
+         v  BlindTokens
+         ^  SolveChallenge
+         v  [SignRequest]           ------->
+                                                   VerifyChallenge  ^
+                                                        SignTokens  |
                                     <-------            [Response]  v
-         ^  {VerifySigs}
-         |  {UnblindTokens}
-         |  {StoreTokens}
+         ^  VerifySigs
+         |  UnblindTokens
+         |  StoreTokens
          v  [Finished]
 
 
@@ -333,7 +333,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                 [Page 6]
+Davidson, et al.         Expires March 17, 2017                 [Page 6]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -358,17 +358,17 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
             Client                                            Edge
 
             [OriginRequest]          ------>
-                                                    {ChallengePage  ^
+                                                     ChallengePage  ^
                                                       + bypass_tag  |
-                                                   + sig_key_cert}  |
+                                                    + sig_key_cert  |
                                      <------            [Response]  v
-         ^  {VerifyCertificate}
-         |  {ConstructTokenMessage}
-         |  {ProofOfWork}*
+         ^  VerifyCertificate
+         |  ConstructTokenMessage
+         |  ProofOfWork*
          v  [SendToken]              ------>
-                                                      {VerifyPoW}*  ^
-                                              {VerifyTokenMessage}  |
-                                                       {GetOrigin}  |
+                                                        VerifyPoW*  ^
+                                                VerifyTokenMessage  |
+                                                         GetOrigin  |
                                      <------            [Response]  v
             [Finished]
 
@@ -389,7 +389,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                 [Page 7]
+Davidson, et al.         Expires March 17, 2017                 [Page 7]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -445,7 +445,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                 [Page 8]
+Davidson, et al.         Expires March 17, 2017                 [Page 8]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -501,7 +501,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                 [Page 9]
+Davidson, et al.         Expires March 17, 2017                 [Page 9]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -557,7 +557,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 10]
+Davidson, et al.         Expires March 17, 2017                [Page 10]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -613,7 +613,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 11]
+Davidson, et al.         Expires March 17, 2017                [Page 11]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -669,7 +669,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 12]
+Davidson, et al.         Expires March 17, 2017                [Page 12]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -725,7 +725,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 13]
+Davidson, et al.         Expires March 17, 2017                [Page 13]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -781,7 +781,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 14]
+Davidson, et al.         Expires March 17, 2017                [Page 14]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -837,7 +837,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 15]
+Davidson, et al.         Expires March 17, 2017                [Page 15]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -893,7 +893,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 16]
+Davidson, et al.         Expires March 17, 2017                [Page 16]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -949,12 +949,12 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 17]
+Davidson, et al.         Expires March 17, 2017                [Page 17]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
-6.2.  {ChallengePage}
+6.2.  ChallengePage
 
    The edge deems the origin request to come from a client requiring the
    showing of a challenge in order to grant access to the protected
@@ -970,14 +970,14 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
    where '%s' is replaced with a valid certificate on some public key.
 
-6.3.  {VerifyCertificate}
+6.3.  VerifyCertificate
 
    When a client is delivered such a page, the installed plugin will run
    the "parse()" function on the HTML and the meta tags above, if this
    function returns true then the plugin inputs the certificate from
    '%s' into "verifyCert()" and checks that this also returns true.
 
-6.4.  {GenerateTokens} + {BlindTokens}
+6.4.  GenerateTokens + BlindTokens
 
    The plugin retrieves the public key 'pubKey' from the verified
    certificate and then checks if "Plugin.tokens[pubKey]" is empty or
@@ -992,7 +992,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
    where 'pubKey' is the public key from the certificate.
 
-6.5.  {SolveChallenge}
+6.5.  SolveChallenge
 
    This step involves the client solving the presented challenge.  This
    step requires human intervention, for instance as in the way that
@@ -1005,7 +1005,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 18]
+Davidson, et al.         Expires March 17, 2017                [Page 18]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -1020,13 +1020,13 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
                    blinded-tokens=<base-64 encoded JSR>
 
-   ## {VerifyChallenge}
+   ## VerifyChallenge
 
    When the edge receives the request with a challenge solution and a
    JSR it first checks that the solution provided is correct with
    respect to the initial challenge that was sent.
 
-6.7.  {SignTokens}
+6.7.  SignTokens
 
    The edge receives the blinded tokens, checks that the challenge
    solution is valid and then runs SIGN() on each blinded token t'_i
@@ -1045,7 +1045,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    where each "<s'_i>" is a base-64 encoded JWS object containing the
    blinded token that is signed as the payload.
 
-6.9.  {VerifyingSignatures}
+6.9.  VerifyingSignatures
 
    The client receives the comma-separated signatures from the edge.
 
@@ -1061,18 +1061,18 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 19]
+Davidson, et al.         Expires March 17, 2017                [Page 19]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
-6.10.  {UnblindTokens}
+6.10.  UnblindTokens
 
    Secondly the plugin runs "unblind(t'_i, s'_i, r_i)" where r_i is the
    ith blinding factor stored in "Plugin.blindingFactors".  This
    function outputs the pair "(t_i, s_i)".
 
-6.11.  {StoreTokens}
+6.11.  StoreTokens
 
    Finally the plugin checks that:
 
@@ -1088,14 +1088,14 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    protected origin.  The origin returns a challenge page as before and
    the client's browser verifies the HTML "meta" tags sent by the edge
    indicate that bypassing a challenge page can happen.  The protocol
-   deviates after the {VerifyCertificate} stage if the map
+   deviates after the VerifyCertificate stage if the map
    "Plugin.tokens[pubKey]" is populated by one or more tokens (where
    'pubKey' is the certified public key as before).
 
    We detail the steps that follow this stage in detailing how a client
    can bypass the challenge.
 
-7.1.  {ConstructTokenMessage}
+7.1.  ConstructTokenMessage
 
    When the client has tokens for being able to bypass challenges the
    browser plugin does the following:
@@ -1117,7 +1117,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 20]
+Davidson, et al.         Expires March 17, 2017                [Page 20]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -1132,7 +1132,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
    and base-64 encodes it to form a base-64 string 'data';
 
-7.2.  {ProofOfWork}
+7.2.  ProofOfWork
 
    This is an optional extension to the protocol that enables the edge
    to specify some proof-of-work (PoW) computation to the client.  This
@@ -1151,18 +1151,18 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    "pow(randNonce)" --> 'out' where 'out' represent the output of the
    computation.
 
-7.3.  {SendToken}
+7.3.  SendToken
 
    o  Runs encode("JRR", data) to get a JRR with the "contents" field
       set equal to 'data'
 
-   o  If {ProofOfWork} is done, then the plugin appends an extra field
-      to the JRR object named "pow" where the value is equal to 'out'.
+   o  If ProofOfWork is done, then the plugin appends an extra field to
+      the JRR object named "pow" where the value is equal to 'out'.
 
    The plugin then reloads the page and sends this JRR as the value of
    the header "challenge-bypass-token".
 
-7.4.  {VerifyPoW}
+7.4.  VerifyPoW
 
    When the edge receives the JRR message that was sent above, if a PoW
    was stipulated then the edge first checks that the value stored in
@@ -1173,12 +1173,12 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 21]
+Davidson, et al.         Expires March 17, 2017                [Page 21]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
-7.5.  {VerifyTokenMessage}
+7.5.  VerifyTokenMessage
 
    The edge decodes the "contents" fields from the received JRR and it
    does the following:
@@ -1206,7 +1206,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    If "success" is still true, then the edge marks the bypass request as
    successful and continues.
 
-7.6.  {GetOrigin} + [Response]
+7.6.  GetOrigin + [Response]
 
    If the verification process was successful.  The edge gets a response
    from the origin that corresponds to the original request in
@@ -1229,7 +1229,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 22]
+Davidson, et al.         Expires March 17, 2017                [Page 22]
 
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
@@ -1273,6 +1273,29 @@ Authors' Addresses
    Email: nick@cloudflare.com
 
 
+   George Tankersley
+   coreOS
+
+   Email: george.tankersley@gmail.com
+
+
+
+
+
+
+
+
+Davidson, et al.         Expires March 17, 2017                [Page 23]
+
+Internet-Draft   Protocol for bypassing challenge pages   September 2016
+
+
+   Filippo Valsorda
+   CloudFlare
+   25 Lavington Street
+   London  SE1 0NZ
+
+   Email: filippo@cloudflare.com
 
 
 
@@ -1285,4 +1308,37 @@ Authors' Addresses
 
 
 
-Davidson & Sullivan      Expires March 17, 2017                [Page 23]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Davidson, et al.         Expires March 17, 2017                [Page 24]
