@@ -11,7 +11,7 @@ History:
 
 Preface:
   Large parts of this specification are taken from an original draft written by 
-  George Tankersley and Fillippo Valsorda 
+  George Tankersley and Filippo Valsorda 
   (https://github.com/gtank/captcha-draft/blob/master/captcha-plugin-draft.txt)  
 
 Overview:
@@ -119,7 +119,7 @@ Introduction:
 
         This signature system must also support blind signing (see below).
 
-      * A cryptographic hash function H(d), which should be preimage and
+      * A cryptographic hash function H(d), which should be pre-image and
         collision resistant. It produces hashes of length HASH_LEN bytes.
 
       * A cryptographic message authentication code MAC(key,msg) that produces
@@ -139,20 +139,20 @@ Introduction:
     This specification uses the following cryptographic tools for blinding and 
     unblinding tokens and corresponding signatures:
 
-      * An algorithm BLIND_GEN(i) -> b_i where b_i is a secret blinding factor for 
-      blinding a single token t_i
+      * An algorithm BLIND_GEN(i) -> b_i where b_i is a secret blinding factor 
+      for blinding a single token t_i
 
-      * An algorithm BLIND(t_i, b_i) -> t'_i that takes the original token t_i and 
-      a blinding factor b_i and outputs a blinded token t'_i
+      * An algorithm BLIND(t_i, b_i) -> t'_i that takes the original token t_i 
+      and a blinding factor b_i and outputs a blinded token t'_i
 
       * (Signing is carried out as above using the standard signing algorithm)
 
       * An algorithm UNBLIND(t'_i, b_i) -> taking the blinded token and the 
       blinding factor used and outputting the original unblinded token t_i
 
-      * An algorithm UNBLIND-SIG(s'_i, b_i) -> s_i where s'_i is a signature on the 
-      blinded token t'_i, b_i is the blinding factor used to retrieve t'_i from 
-      t_i and s_i is a valid signature on t_i.
+      * An algorithm UNBLIND_SIG(s'_i, b_i) -> s_i where s'_i is a signature on 
+      the blinded token t'_i, b_i is the blinding factor used to retrieve t'_i 
+      from t_i and s_i is a valid signature on t_i.
 
     We use the RSA modification that is described at 
     https://en.wikipedia.org/wiki/Blind_signature#Blind_signature_schemes to 
@@ -175,19 +175,20 @@ Introduction:
         token contents such that they can only be read by the edge.
 
       * One secret/public keypair for SIGN, used by the challenge service to sign
-        bypass tokens. This key pair *must* be different to the key pair for ENCRYPT to 
-        avoid attacks 
+        bypass tokens. This key pair *must* be different to the key pair for 
+        ENCRYPT to avoid attacks 
         (https://en.wikipedia.org/wiki/Blind_signature#Dangers_of_blind_signing).
 
       * One secret/public keypair for SIGN, used by the edge to sign <meta> tags
         on challenge pages. If the same operator controls both the edge and the
         challenge service, this MUST be different from the keypair used to sign
-        bypass tokens because the client has access to a signing oracle under the
-        token key (see "Obtaining signatures"). The plugin should be distributed
-        with a pinned copy of this public key for each supported edge.
+        bypass tokens because the client has access to a signing oracle under 
+        the token key (see "Obtaining signatures"). The plugin should be 
+        distributed with a pinned copy of this public key for each supported 
+        edge.
 
-      * A symmetric MAC key derived from each nonce, used by the plugin to bind a
-        redeemed nonce to its particular request.
+      * A symmetric MAC key derived from each nonce, used by the plugin to bind 
+        a redeemed nonce to its particular request.
 
 3 Notation 
 
