@@ -36,6 +36,27 @@
 %   street = "101 Townsend St"
 %   city = "San Francisco"
 %   code = "CA 94107"
+%
+% [[author]]
+% initials="G."
+% surname="Tankersley"
+% fullname="George Tankersley"
+% organization = "coreOS"
+%   [author.address]
+%   email = "george.tankersley@gmail.com"
+%
+% [[author]]
+% initials="F."
+% surname="Valsorda"
+% fullname="Filippo Valsorda"
+% organization = "CloudFlare"
+%   [author.address]
+%   email = "filippo@cloudflare.com"
+%   [author.address.postal]
+%   street = "25 Lavington Street"
+%   city = "London"
+%   code = "SE1 0NZ"
+
 
 .# Abstract
 
@@ -180,21 +201,21 @@ page instead.
        Client                                            Edge
     
        [OriginRequest]         ------->                      
-                                               {ChallengePage  ^                                                                      
+                                                ChallengePage  ^                                                                      
                                                  + bypass_tag  |
-                                              + sig_key_cert}  |
+                                               + sig_key_cert  |
                                <-------            [Response]  v
-    ^  {VerifyCertificate}
-    |  {GenerateTokens}
-    v  {BlindTokens}
-    ^  {SolveChallenge}
-    v  [SignRequest]               ------->        
-                                            {VerifyChallenge}  ^
-                                                 {SignTokens}  |
+    ^  VerifyCertificate
+    |  GenerateTokens
+    v  BlindTokens
+    ^  SolveChallenge
+    v  [SignRequest]           ------->        
+                                              VerifyChallenge  ^
+                                                   SignTokens  |
                                <-------            [Response]  v
-    ^  {VerifySigs}
-    |  {UnblindTokens}
-    |  {StoreTokens}
+    ^  VerifySigs
+    |  UnblindTokens
+    |  StoreTokens
     v  [Finished]
 
 ~~~
@@ -243,17 +264,17 @@ original token and a valid sigature;
        Client                                            Edge
     
        [OriginRequest]          ------>                      
-                                               {ChallengePage  ^                                                                      
+                                                ChallengePage  ^                                                                      
                                                  + bypass_tag  |                                                 
-                                              + sig_key_cert}  |
+                                               + sig_key_cert  |
                                 <------            [Response]  v
-    ^  {VerifyCertificate}
-    |  {ConstructTokenMessage}
-    |  {ProofOfWork}*
+    ^  VerifyCertificate
+    |  ConstructTokenMessage
+    |  ProofOfWork*
     v  [SendToken]              ------>   
-                                                 {VerifyPoW}*  ^   
-                                         {VerifyTokenMessage}  |
-                                                  {GetOrigin}  |
+                                                   VerifyPoW*  ^   
+                                           VerifyTokenMessage  |
+                                                    GetOrigin  |
                                 <------            [Response]  v
        [Finished]
 
@@ -722,7 +743,7 @@ This initiation of the protocol is triggered by the OriginRequest
 where the client attempts to access a webpage (for example over HTTP).
 For the purposes of our protocol this webpage is edge-protected.
 
-## {ChallengePage}
+## ChallengePage
 
 The edge deems the origin request to come from a client requiring the
 showing of a challenge in order to grant access to the protected 
@@ -740,14 +761,14 @@ The tags that indicate participation are:
 
 where '%s' is replaced with a valid certificate on some public key.
 
-## {VerifyCertificate}
+## VerifyCertificate
 
 When a client is delivered such a page, the installed plugin will run 
 the `parse()` function on the HTML and the meta tags above, if this 
 function returns true then the plugin inputs the certificate from '%s'
 into `verifyCert()` and checks that this also returns true. 
 
-## {GenerateTokens} + {BlindTokens}
+## GenerateTokens + BlindTokens
 
 The plugin retrieves the public key 'pubKey' from the verified 
 certificate and then checks if `Plugin.tokens[pubKey]` is empty or 
@@ -762,7 +783,7 @@ The array 'toks' is stored in the 'tokens' map as
 
 where 'pubKey' is the public key from the certificate.
 
-## {SolveChallenge}
+## SolveChallenge
 
 This step involves the client solving the presented challenge. This 
 step requires human intervention, for instance as in the way that 
@@ -778,13 +799,13 @@ body using the syntax:
 
     blinded-tokens=<base-64 encoded JSR>
 
-## {VerifyChallenge}
+## VerifyChallenge
 
 When the edge receives the request with a challenge solution and a JSR
 it first checks that the solution provided is correct with respect to 
 the initial challenge that was sent.
 
-## {SignTokens}
+## SignTokens
 
 The edge receives the blinded tokens, checks that the challenge 
 solution is valid and then runs SIGN() on each blinded token t'_i from 
@@ -803,7 +824,7 @@ using the syntax:
 where each `<s'_i>` is a base-64 encoded JWS object containing the 
 blinded token that is signed as the payload.
 
-## {VerifyingSignatures}
+## VerifyingSignatures
 
 The client receives the comma-separated signatures from the edge. 
 
@@ -812,13 +833,13 @@ received signature `s'_i` where `t'_i` is the blinded token stored in
 the payload and pubKey stored on the original certificate. If each 
 invocation of `verifySig()` is successful then the plugin proceeds.
 
-## {UnblindTokens}
+## UnblindTokens
 
 Secondly the plugin runs `unblind(t'_i, s'_i, r_i)` where r_i is the 
 ith blinding factor stored in `Plugin.blindingFactors`. This function 
 outputs the pair `(t_i, s_i)`.
 
-## {StoreTokens}
+## StoreTokens
 
 Finally the plugin checks that:
 
@@ -834,14 +855,14 @@ acquisition protocol with the client attempting to visit an
 edge-protected origin. The origin returns a challenge page as before
 and the client's browser verifies the HTML `meta` tags sent by the 
 edge indicate that bypassing a challenge page can happen. The protocol 
-deviates after the {VerifyCertificate} stage if the map 
+deviates after the VerifyCertificate stage if the map 
 `Plugin.tokens[pubKey]` is populated by one or more tokens (where 
 'pubKey' is the certified public key as before). 
 
 We detail the steps that follow this stage in detailing how a client 
 can bypass the challenge.
 
-## {ConstructTokenMessage}
+## ConstructTokenMessage
 
 When the client has tokens for being able to bypass challenges the 
 browser plugin does the following:
@@ -877,7 +898,7 @@ t-enc || sig || hm
 
 and base-64 encodes it to form a base-64 string 'data';
 
-## {ProofOfWork}
+## ProofOfWork
 
 This is an optional extension to the protocol that enables the edge to 
 specify some proof-of-work (PoW) computation to the client. This is to 
@@ -895,17 +916,17 @@ nonce that the client uses in answering the PoW. The plugin then
 computes `pow(randNonce)` --> 'out' where 'out' represent the output 
 of the computation.
 
-## {SendToken}
+## SendToken
 
 - Runs encode("JRR", data) to get a JRR with the "contents" field set 
 equal to 'data'
-- If {ProofOfWork} is done, then the plugin appends an extra field to 
+- If ProofOfWork is done, then the plugin appends an extra field to 
 the JRR object named "pow" where the value is equal to 'out'.
 
 The plugin then reloads the page and sends this JRR as the value of 
 the header "challenge-bypass-token".
 
-## {VerifyPoW}
+## VerifyPoW
 
 When the edge receives the JRR message that was sent above, if a PoW 
 was stipulated then the edge first checks that the value stored in the 
@@ -913,7 +934,7 @@ was stipulated then the edge first checks that the value stored in the
 
 If not, then the protocol is aborted at this point.
 
-## {VerifyTokenMessage}
+## VerifyTokenMessage
 
 The edge decodes the "contents" fields from the received JRR and it 
 does the following:
@@ -944,7 +965,7 @@ and checks that hm == hm-edge, if not "it sets "success" to false.
 If "success" is still true, then the edge marks the bypass request as 
 successful and continues. 
 
-## {GetOrigin} + [Response]
+## GetOrigin + [Response]
 
 If the verification process was successful. The edge gets a response 
 from the origin that corresponds to the original request in 
