@@ -5,11 +5,11 @@
 Network Working Group                                        A. Davidson
 Internet-Draft                      Royal Holloway, University of London
 Intended status: Informational                               N. Sullivan
-Expires: March 17, 2017                                       CloudFlare
+Expires: March 17, 2017                                       Cloudflare
                                                            G. Tankersley
-                                                                  coreOS
+                                                              Cloudflare
                                                              F. Valsorda
-                                                              CloudFlare
+                                                              Cloudflare
                                                       September 13, 2016
 
 
@@ -142,25 +142,26 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    website that was requested by the user.  This is used to prevent
    malicious access by automated processes that can adversely affect the
    performance of the website itself.  While these 'challenges' succeed
-   in their mission statement, they do add a noticeably extra amount of
-   work to honest users who have to complete them.
+   in their mission, they create noticeably more work for honest users
+   who have to complete them.
 
-   These challenge pages are commonly enforced by CDNs who offer
-   security services to customers.  Companies like CloudFlare offer the
-   ability for customers to serve CAPTCHA pages (via Google's ReCAPTCHA
+   These challenge pages are commonly served by CDNs who offer security
+   services to customers.  Companies like Cloudflare offer customers the
+   ability to serve CAPTCHA pages (often using Google's ReCAPTCHA
    service) to any IP addresses requesting a protected resource where
    the IP is deemed to have a "bad reputation".  IP reputation scoring
-   is done externally and is based on whether any malign activity (such
-   as spamming and/or abuse) is detected as originating from this
-   address.
+   comes from varied sources and is based on whether any malicious
+   activity (such as spamming and/or abuse) is detected as originating
+   from the IP in question.
 
    Services such as Tor suffer dramatically under such reputation-based
-   systems.  Users are assigned to one of a small number exit nodes when
-   accessing webpages through Tor and thus they are assigned the IP of
-   the node itself.  The IP addresses of these nodes are frequently
+   systems.  Users are assigned to one of a small number of exit nodes
+   when accessing webpages through Tor and appear to be browsing with
+   the IP of that node.  The IP addresses of these nodes are frequently
    associated with malicious and abusive behaviour and are thus assigned
-   poor reputation scores.  This can also effect other services such as
-   VPN providers and I2P traffic.
+   poor reputation scores.  This problem is not specific to Tor; VPNs,
+   I2P, and internet users behind large-scale NAT installations are
+   affected similarly.
 
 
 
@@ -170,27 +171,27 @@ Davidson, et al.         Expires March 17, 2017                 [Page 3]
 Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
-   The end result is that honest users of services like Tor are forced
-   to complete many challenge pages in order to access content provided
-   by edge service providers such as CloudFlare.  This problem is
-   exacerbated by the fact that these companies typically offer services
-   to a wide-range of websites including many of the most visited web
-   pages on the internet today.  This results in a huge increase in
-   workload for these users for a very common and unobtrusive task.
+   The end result is that honest users of these services are forced to
+   complete many challenge pages in order to access content protected by
+   edge service providers such as Cloudflare, and the problem is
+   exacerbated by the fact that these companies offer services to a wide
+   range of popular websites.  This results in a huge increase in
+   workload for average Tor users in spite of their non-malicious
+   nature.
 
    Further problems arise for users who choose not to enable JavaScript
    in their browsers since they are served with challenges that are
    rapidly deteriorating to the point where a large proportion of
    challenges are too hard to be solved.
 
-   Currently some edge providers (e.g.  CloudFlare) attempt to solve
+   Currently some edge providers (e.g.  Cloudflare) attempt to solve
    this problem by providing cookies that enable access to protected
    resources once a CAPTCHA has been solved.  There are two problems
-   with this method: - when a new Tor circuit is constructed the cookie
-   is rendered useless; - due to a CDN's sprawling presence, giving
-   users cookies can lead to future deanonymisation attacks that bypass
-   the current Tor threat model.  As such a new solution to this problem
-   is needed.
+   with this method: first, that when a new Tor circuit is constructed
+   the cookie is rendered useless; and secondly, that setting cookies
+   across many domains controlled by the same CDN could lead to
+   deanonymisation attacks outside the current Tor Browser threat model.
+   As such a new solution to this problem is needed.
 
    In this document we detail a protocol that enables a user to complete
    a single edge-served challenge page in return for a finite number of
@@ -260,7 +261,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    can be indicated in the HTML of the page as a meta tag along with a
    certificate advising which public key the edge is currently using.
    Two separate protocols exist for when the client has no signed tokens
-   available to them and secondly when the client already has tokens.
+   available to it and secondly for when the client already has tokens.
 
    Both protocols require essentially four rounds of communication.  We
    take into account the initial request and response when the client
@@ -530,16 +531,16 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    where each ""key_i"" is a key value, key_i is marshaled as a string
    but can be any built-in type.  Likewise ""[value_i]"" represents the
    corresponding value for ""key_i"", "value_i" is typically encoded as
-   a string in either hexadecimal or base-64 encoding.  We assume that
+   a string in either hexadecimal or base64 encoding.  We assume that
    all JSON is accessible using a map-interface where, if data is a JSON
    object, then "data[key_1]" returns "value_1".
 
 3.3.  Data Formatting
 
    This section deals with the formatting of the different data types
-   that are required in our protocol.  This will cover, for instance,
-   how tokens should be formatted and how messages between the client
-   and the edge should be structured.
+   that are required in our protocol.  This will cover how tokens should
+   be formatted and how messages between the client and the edge should
+   be structured.
 
 3.3.1.  Tokens
 
@@ -549,7 +550,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
                            "nonce":"[nonce_value]"
                          }
 
-   where [nonce_value] is a hex encoded 30-byte sequence of
+   where [nonce_value] is a base64 encoded 32-byte sequence of
    cryptographically random bytes.
 
 
@@ -567,7 +568,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    The messages that the client sends to the edge after being served a
    challenge page (i.e. in the third round of communication) are written
    as JSON structures.  These messages designate the type of operation
-   that is required of the edge.  All messages below are base-64 encoded
+   that is required of the edge.  All messages below are base64 encoded
    before they are sent.
 
    The messages are heavily defined by the HTTP protocol that the
@@ -591,10 +592,10 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    where [t'_i] is a generated token that has been subsequently blinded.
    We call such a JSON object a 'JSON signing request' (JSR).
 
-   After base-64 encoding is done the final message is sent to the edge
+   After base64 encoding is done the final message is sent to the edge
    as:
 
-                   blinded-tokens=[base-64 encoded JSR]
+                   blinded-tokens=[base64 encoded JSR]
 
 3.3.2.2.  Redeeming
 
@@ -676,7 +677,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
    The edge holds both key pairs and the plugin in the client's browser
    has the public keys.  The MAC key is derived at the time of messaging
-   and is learnt by both parties.
+   and is shared by both parties.
 
 4.2.  Signing/Verifying Algorithms
 
@@ -744,7 +745,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
    o  both encryption and signing keys are 2048-bit RSA keys;
 
-   o  the SIGN/VERIFY algorithms are RSA without modifications;
+   o  the SIGN/VERIFY algorithm is FDH-RSA to support binding;
 
    o  BLIND/UNBLIND follow naturally from the referenced work;
 
@@ -752,11 +753,6 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
    o  MAC is instantiated with HMAC.
 
-   To mitigate the issues caused by using RSA without modifications we
-   make extra structural checks on the tokens that are sent -- this is
-   to prevent manipulation of tokens using the homomorphic properties of
-   this scheme.  Also all tokens must be representable in less than 2048
-   bits to prevent problems with wrapping-around the RSA modulus.
 
 4.7.  Randomness Sampling
 
@@ -769,6 +765,9 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    we can instantiate this algorithm using any standard library for
    generating cryptographic randomness.  In future notation we may omit
    the seed for ease of exposition.
+
+   Random numbers used as blinding factors must be sampled from the full
+   domain allowed by the chosen RSA parameters [BNPS01].
 
 5.  Browser plugin
 
@@ -852,15 +851,18 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
    This function takes an integer N as input and outputs an array
    'tokens' of length N containing.  The array is generated by sampling
-   N 30-byte nonces is randomly sampled via SAMPLE() and constructing N
-   tokens by creating N JSON objects with the "nonce" field set to the
-   value of the sampled nonce.
+   N 32-byte nonces randomly via SAMPLE() and constructing N tokens
+   by creating N JSON objects with the "nonce" field set to the value
+   of the sampled nonce.
 
    o  blind(t) --> t'
 
    This function takes a token t as input and outputs a blinded token
    t'.  The function uses SAMPLE() to generate a 256-byte random "int_b"
-   r and then runs BLIND(r, t) --> t' and outputs t'.  It also sets
+   r from the full domain allowed by the RSA keys and then runs
+   BLIND(r, t) --> t' and outputs t'.  After each use of blind(), the plugin
+   should store a map between the blinded data and the blinding factor used,
+   such as
 
                       Plugin.blindingFactors[t'] = r
 
@@ -883,7 +885,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
    o  encode(type, data)
 
-   Takes a 'type' string and a base-64 encoded string 'data' as input.
+   Takes a 'type' string and a base64 encoded string 'data' as input.
    The 'type' string corresponds to a JSON request (either "JSR" or
    "JRR") and creates a JSON object with the "type" field set
    appropriately and the "contents" field set to be equal to the 'data'
@@ -919,14 +921,14 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 5.1.  Pinned public keys
 
-   The plugin has a list of public keys pinned into it in the string
-   array "publicKeys" (the keys are stored as hex strings).  This
-   prevents a service from handing out unique public keys for each
-   client and thus gaining request linkability and a deanonymisation
-   vector on users.  When an edge provides a certificate for a given
-   public key the plugin checks if the key that is contained in the
-   certificate is one of the pinned keys that it already has stored
-   before continuing.
+   The plugin has a list of pinned public keys stored as base64 strings
+   in the string array "publicKeys".  Because browser plugins are signed
+   and verifiable as part of a deterministic build process, this
+   prevents a service from assigning unique public keys to each client
+   as a way of linking requests and deanonymising users.  When an edge
+   provides a certificate for a given public key, the plugin checks that
+   the key contained in the certificate is one of its pinned keys before
+   communicating futher with the edge.
 
 6.  Token Acquisition Protocol
 
@@ -961,9 +963,9 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    website.  The challenge page displays some HTML conveying the
    explicit challenge to the client.
 
-   To participate in accepting tokens for bypassing challenge pages, an
-   edge must also append specific "<meta>" tags to the HTML of the page.
-   The tags that indicate participation are:
+   To participate in accepting challenge bypass tokens, an edge must
+   also append specific "<meta>" tags to the HTML of the page.  The tags
+   that indicate participation are:
 
             <meta name="captcha-bypass" id="captcha-bypass" />
             <meta name="chl-cert" id="chl-cert" content="%s" />
@@ -1015,10 +1017,10 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    The plugin encodes the array 'blindedTokens' as a string 'content'
    and runs "encode("JSR", content)" to get a JSR request containing
    this data.  When the challenge solution is sent to the edge by the
-   client, the plugin base-64 encodes the JSR and appends it to the HTTP
+   client, the plugin base64 encodes the JSR and appends it to the HTTP
    request body using the syntax:
 
-                   blinded-tokens=<base-64 encoded JSR>
+                   blinded-tokens=<base64 encoded JSR>
 
    ## VerifyChallenge
 
@@ -1042,7 +1044,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
                       signatures=[<s'_1>,...,<s'_N>]
 
-   where each "<s'_i>" is a base-64 encoded JWS object containing the
+   where each "<s'_i>" is a base64 encoded JWS object containing the
    blinded token that is signed as the payload.
 
 6.9.  VerifyingSignatures
@@ -1130,7 +1132,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
                             t-enc || sig || hm
 
-   and base-64 encodes it to form a base-64 string 'data';
+   and base64 encodes it to form a string 'data';
 
 7.2.  ProofOfWork
 
@@ -1213,8 +1215,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
    {OriginRequest} from the client.  The edge then sends this response
    directly back to the client.
 
-   This allows the client access to the resource they tried to gain
-   access to.
+   This allows the client to access the origin resource.
 
 8.  References
 
@@ -1235,6 +1236,11 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
 8.2.  Informative References
+
+   [BNPS01]   Bellare, M., Namprempre, C., Pointcheval, D., and M.
+              Semanko,   "The One-More-RSA-Inversion Problems and the
+              Security of Chaum’s Blind Signature Scheme", 2001,
+              <https://eprint.iacr.org/2001/002.pdf>.
 
    [Cha83]    Chaum, D., "Blind Signatures For Untraceable Payments",
               1983, <http://sceweb.sce.uhcl.edu/yang/teaching/
@@ -1266,7 +1272,7 @@ Authors' Addresses
 
 
    Nick Sullivan
-   CloudFlare
+   Cloudflare
    101 Townsend St
    San Francisco  CA 94107
 
@@ -1274,9 +1280,9 @@ Authors' Addresses
 
 
    George Tankersley
-   coreOS
+   Cloudflare
 
-   Email: george.tankersley@gmail.com
+   Email: george.tankersley@cloudflare.com
 
 
 
@@ -1291,7 +1297,7 @@ Internet-Draft   Protocol for bypassing challenge pages   September 2016
 
 
    Filippo Valsorda
-   CloudFlare
+   Cloudflare
    25 Lavington Street
    London  SE1 0NZ
 
